@@ -34,3 +34,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# Rust/Cargo specific ignores
+src-tauri/Cargo.lock
+bun.lockb
+
+# Generated files
+components.json
+src-tauri/icons/
+src-tauri/build.rs
+src-tauri/diesel.toml
+src-tauri/migrations/
+src-tauri/tauri.conf.json
