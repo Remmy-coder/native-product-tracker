@@ -1,11 +1,12 @@
+import dynamic from "next/dynamic";
 import Image from "next/image";
-import Greet from "./helloWorld";
-import Auth from "./auth";
+
+const AuthComponent = dynamic(() => import("./auth/index"), { ssr: false });
 
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <Auth />
+      <AuthComponent />
     </main>
   );
 }

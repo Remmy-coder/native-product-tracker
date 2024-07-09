@@ -20,7 +20,7 @@ use std::{
 };
 use uuid::Uuid;
 
-fn get_app_dir() -> PathBuf {
+pub fn get_app_dir() -> PathBuf {
     data_dir()
         .expect("Unable to get data directory")
         .join("product_tracker_app")
