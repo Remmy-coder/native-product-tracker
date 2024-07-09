@@ -3,15 +3,25 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Fragment, useState } from "react";
 import clsx from "clsx";
-
-interface TabsTriggerProps {
-  selected: boolean;
-}
+import { invoke } from "@tauri-apps/api/core";
 
 export default function Auth() {
   const [activeTab, setActiveTab] = useState<
     "sign_in_challenge" | "create_client"
   >("sign_in_challenge");
+
+  // const handleTest = async () => {
+  //   await invoke("create_client");
+  // };
+  //
+  // const handleSignIn = async () => {
+  //   try {
+  //     const sessionData = await invoke("validate_session", { session });
+  //     console.log(sessionData);
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
   return (
     <Fragment>
       <div>
