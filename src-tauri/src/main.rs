@@ -22,20 +22,20 @@ fn create_client(state: tauri::State<AppState>) -> Result<serde_json::Value, Str
     let mut conn = state.conn.lock().unwrap();
     match client_service::create_client(&mut *conn) {
         Ok(client) => Ok(serde_json::json!({ "client": client })),
-        Err(err) => Ok(serde_json::json!({ "error": err.error })),
+        Err(err) => Err(err.error),
     }
 }
 
 #[tauri::command]
 fn sign_in() -> Result<serde_json::Value, String> {
-    authenticate_client().map(|session| {
-        serde_json::json!({
+    match authenticate_client() {
+        Ok(session) => Ok(serde_json::json!({
             "token": session.token,
             "client_id": session.client_id,
             "expires_at": session.expires_at,
-        })
-    })
-}
+        })),
+        Err(err) => Err(err.to_string()),  
+    }}
 
 #[tauri::command]
 fn validate_session(session: Session) -> bool {

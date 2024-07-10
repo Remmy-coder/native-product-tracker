@@ -1,65 +1,63 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import clsx from "clsx";
-import { invoke } from "@tauri-apps/api/core";
+import clientAuthTabMachine from "@/lib/machines/clientAuthTabMachine";
+import { useMachine } from "@xstate/react";
+import CreateClient from "./createClient";
 
 export default function Auth() {
-  const [activeTab, setActiveTab] = useState<
-    "sign_in_challenge" | "create_client"
-  >("sign_in_challenge");
+  const [state, send] = useMachine(clientAuthTabMachine);
 
-  // const handleTest = async () => {
-  //   await invoke("create_client");
-  // };
-  //
-  // const handleSignIn = async () => {
-  //   try {
-  //     const sessionData = await invoke("validate_session", { session });
-  //     console.log(sessionData);
-  //   } catch (err) {
-  //     console.error(err);
-  //   }
-  // };
+  const handleSwitch = (
+    targetState: "authenticate_client" | "create_client",
+  ) => {
+    if (state.value !== targetState) {
+      send({ type: "SWITCH" });
+    }
+  };
   return (
     <Fragment>
-      <div>
+      <main className="flex flex-col items-center">
         <h2 className="scroll-m-20 border-b pb-2 text-3xl text-center font-semibold tracking-tight first:mt-0 mb-7">
           CLIENT AUTHENTICATION
         </h2>
 
-        <Tabs defaultValue="sign_in_challenge" className=" w-[700px]">
+        <Tabs defaultValue={state.value} className=" w-[750px]">
           <TabsList className="grid w-full grid-cols-2 bg-black">
             <TabsTrigger
-              value="sign_in_challenge"
+              value="authenticate_client"
               className={clsx(
                 "rounded-md focus:outline-none focus:ring focus:ring-gray-500",
-                activeTab === "sign_in_challenge" ? "bg-gray-500" : "",
+                state.matches("authenticate_client") ? "bg-gray-500" : "",
               )}
-              onClick={() => setActiveTab("sign_in_challenge")}
+              onClick={() => handleSwitch("authenticate_client")}
             >
-              SIGN IN CHALLENGE
+              AUTHENTICATE CLIENT
             </TabsTrigger>
             <TabsTrigger
               value="create_client"
               className={clsx(
                 "rounded-md focus:outline-none focus:ring focus:ring-gray-500",
-                activeTab === "create_client" ? "bg-gray-500" : "",
+                state.matches("create_client") ? "bg-gray-500" : "",
               )}
-              onClick={() => setActiveTab("create_client")}
+              onClick={() => handleSwitch("create_client")}
             >
-              CLIENT CREATION
+              CREATE CLIENT
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="sign_in_challenge">
+          <TabsContent value="authenticate_client">
             <h4>Sign In Challenge</h4>
           </TabsContent>
-          <TabsContent value="create_client">
-            <h4>Create A Client</h4>
+          <TabsContent
+            value="create_client"
+            className="flex flex-col items-center"
+          >
+            <CreateClient />
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
     </Fragment>
   );
 }
