@@ -1,5 +1,5 @@
+use app::ErrorResponse;
 use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
-use serde::Serialize;
 
 use crate::{models::Client, schema::clients, schema::clients::dsl::*};
 
@@ -8,10 +8,7 @@ use super::{
     session_management_service::get_client_id_from_private_key,
 };
 
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
+
 
 pub fn create_client(conn: &mut PgConnection) -> Result<Client, ErrorResponse> {
     match get_client_id_from_private_key() {

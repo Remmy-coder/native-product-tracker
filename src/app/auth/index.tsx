@@ -5,7 +5,7 @@ import { Fragment } from "react";
 import clsx from "clsx";
 import clientAuthTabMachine from "@/lib/machines/clientAuthTabMachine";
 import { useMachine } from "@xstate/react";
-import CreateClient from "./createClient";
+import AuthClientOperation from "./authClientOperation";
 
 export default function Auth() {
   const [state, send] = useMachine(clientAuthTabMachine);
@@ -47,14 +47,17 @@ export default function Auth() {
               CREATE CLIENT
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="authenticate_client">
-            <h4>Sign In Challenge</h4>
+          <TabsContent
+            value="authenticate_client"
+            className="flex flex-col items-center"
+          >
+            <AuthClientOperation {...state} />
           </TabsContent>
           <TabsContent
             value="create_client"
             className="flex flex-col items-center"
           >
-            <CreateClient />
+            <AuthClientOperation {...state} />
           </TabsContent>
         </Tabs>
       </main>
