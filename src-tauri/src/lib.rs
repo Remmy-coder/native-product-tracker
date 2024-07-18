@@ -1,4 +1,10 @@
 use {diesel::pg::PgConnection, diesel::prelude::*, dotenvy::dotenv, std::env};
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
 
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();

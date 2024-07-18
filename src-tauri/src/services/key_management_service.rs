@@ -23,7 +23,7 @@ use uuid::Uuid;
 pub fn get_app_dir() -> PathBuf {
     data_dir()
         .expect("Unable to get data directory")
-        .join("product_tracker_app")
+        .join("product-tracker-app")
 }
 
 fn get_encryption_key() -> GenericArray<u8, U32> {

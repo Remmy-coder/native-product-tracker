@@ -1,5 +1,6 @@
 import { setup, fromPromise, assign } from "xstate";
 import { invoke } from "@tauri-apps/api/core";
+import { StorageManager } from "../utils";
 
 type CreateClientResponse = {
   client: { id: string; private_key_path: string };
@@ -11,15 +12,15 @@ type AuthenticateClientResponse = {
   expires_at: string;
 };
 
+const storageManager = new StorageManager("store.bin");
+
 const createClientLogic = fromPromise(async () => {
   const response = await invoke<CreateClientResponse>("create_client");
   return response;
 });
 
 const authenticateClientLogic = fromPromise(async () => {
-  const response = await invoke<AuthenticateClientResponse>(
-    "authenticate_client",
-  );
+  const response = await invoke<AuthenticateClientResponse>("sign_in");
   return response;
 });
 
@@ -69,9 +70,20 @@ const clientOperationsMachine = setup({
         src: "authenticateClientLogic",
         onDone: {
           target: "success",
-          actions: assign({
-            authData: ({ event }) => event.output,
-          }),
+          actions: [
+            assign({
+              authData: ({ event }) => event.output,
+            }),
+            async ({ context }) => {
+              if (context.authData) {
+                await storageManager.setItem(
+                  "client_session",
+                  context.authData,
+                );
+                await storageManager.save();
+              }
+            },
+          ],
         },
         onError: {
           target: "failure",
