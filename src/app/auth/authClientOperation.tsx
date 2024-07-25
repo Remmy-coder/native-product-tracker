@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import clientAuthTabMachine from "@/lib/machines/clientAuthTabMachine";
 import clientOperationsMachine from "@/lib/machines/clientOperationsMachine";
 import { useMachine } from "@xstate/react";
 import {

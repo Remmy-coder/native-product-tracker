@@ -6,10 +6,11 @@ mod schema;
 mod services;
 
 use app::establish_connection;
+use chrono::NaiveDateTime;
 use diesel::PgConnection;
-use models::NewProduct;
+use models::{NewBatchDetail, NewProduct, UpdateBatchDetail, UpdateProduct};
 use services::{
-    client_service, product_service,
+    batch_details_service, client_service, product_service,
     session_management_service::{authenticate_client, Session},
 };
 use std::sync::Mutex;
@@ -94,7 +95,143 @@ fn get_all_products_for_client(
 ) -> Result<serde_json::Value, String> {
     let mut conn = state.conn.lock().unwrap();
     match product_service::get_all_products_for_client(&mut *conn, client_id) {
-        Ok(products) => Ok(serde_json::json!({ "products": products })),
+        Ok(products) => Ok(serde_json::json!({ "data": products })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn update_product(
+    state: tauri::State<AppState>,
+    product_id: Uuid,
+    product_name: Option<String>,
+    total_quantity: Option<i32>,
+    total_shipper_boxes: Option<i32>,
+    updated_at: Option<NaiveDateTime>,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    let product_data = UpdateProduct {
+        product_name: product_name.as_deref(),
+        total_quantity,
+        total_shipper_boxes,
+        updated_at,
+    };
+    match product_service::update_product(&mut *conn, product_id, product_data) {
+        Ok(product) => Ok(serde_json::json!({"data": product})),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn delete_product(
+    state: tauri::State<AppState>,
+    product_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    match product_service::delete_product(&mut *conn, product_id) {
+        Ok(rows) => Ok(serde_json::json!({ "deleted": rows })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn create_batch_detail(
+    state: tauri::State<AppState>,
+    product_id: Uuid,
+    batch_no: String,
+    mfg_date: chrono::NaiveDate,
+    exp_date: chrono::NaiveDate,
+    boxes: i32,
+    units_per_box: i32,
+    units_per_pack: i32,
+    packs_per_box: i32,
+    packages_configuration: String,
+    total_packs: i32,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    let new_batch_detail = NewBatchDetail {
+        product_id,
+        batch_no: &batch_no,
+        mfg_date,
+        exp_date,
+        boxes,
+        units_per_box,
+        units_per_pack,
+        packs_per_box,
+        packages_configuration: &packages_configuration,
+        total_packs,
+    };
+    match batch_details_service::create_batch_detail(&mut *conn, new_batch_detail) {
+        Ok(batch_detail) => Ok(serde_json::json!({ "batch_detail": batch_detail })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn get_batch_detail(
+    state: tauri::State<AppState>,
+    batch_detail_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    match batch_details_service::get_batch_detail(&mut *conn, batch_detail_id) {
+        Ok(batch_detail) => Ok(serde_json::json!({ "batch_detail": batch_detail })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn update_batch_detail(
+    state: tauri::State<AppState>,
+    batch_detail_id: Uuid,
+    batch_no: Option<String>,
+    mfg_date: Option<chrono::NaiveDate>,
+    exp_date: Option<chrono::NaiveDate>,
+    boxes: Option<i32>,
+    units_per_box: Option<i32>,
+    units_per_pack: Option<i32>,
+    packs_per_box: Option<i32>,
+    packages_configuration: Option<String>,
+    total_packs: Option<i32>,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    let batch_detail_data = UpdateBatchDetail {
+        batch_no: batch_no.as_deref(),
+        mfg_date,
+        exp_date,
+        boxes,
+        units_per_box,
+        units_per_pack,
+        packs_per_box,
+        packages_configuration: packages_configuration.as_deref(),
+        total_packs,
+    };
+    match batch_details_service::update_batch_detail(&mut *conn, batch_detail_id, batch_detail_data)
+    {
+        Ok(batch_detail) => Ok(serde_json::json!({ "batch_detail": batch_detail })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn delete_batch_detail(
+    state: tauri::State<AppState>,
+    batch_detail_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    match batch_details_service::delete_batch_detail(&mut *conn, batch_detail_id) {
+        Ok(rows) => Ok(serde_json::json!({ "deleted": rows })),
+        Err(err) => Err(err.error),
+    }
+}
+
+#[tauri::command]
+fn fetch_all_batches_for_product(
+    state: tauri::State<AppState>,
+    product_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let mut conn = state.conn.lock().unwrap();
+    match batch_details_service::fetch_all_batches_for_product(&mut *conn, product_id) {
+        Ok(products) => Ok(serde_json::json!({ "batch_detail": products })),
         Err(err) => Err(err.error),
     }
 }
@@ -126,7 +263,14 @@ fn main() {
             create_product,
             get_product,
             get_all_products,
-            get_all_products_for_client
+            get_all_products_for_client,
+            update_product,
+            delete_product,
+            create_batch_detail,
+            get_batch_detail,
+            update_batch_detail,
+            delete_batch_detail,
+            fetch_all_batches_for_product
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

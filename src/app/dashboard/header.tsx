@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Fragment } from "react";
 
 export default function Header() {
   const pathname = usePathname();
@@ -19,18 +20,18 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-black bg-opacity-90 px-4">
       <Breadcrumb className="hidden md:flex">
         <BreadcrumbList>
-          {getPathSegments().map((value) => (
-            <>
+          {getPathSegments().map((value, index: number) => (
+            <Fragment key={index}>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
                   <p className="capitalize">{value}</p>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-            </>
+            </Fragment>
           ))}
         </BreadcrumbList>
       </Breadcrumb>

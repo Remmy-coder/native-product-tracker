@@ -49,6 +49,7 @@ pub struct UpdateProduct<'a> {
     pub product_name: Option<&'a str>,
     pub total_quantity: Option<i32>,
     pub total_shipper_boxes: Option<i32>,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(
@@ -61,16 +62,16 @@ pub struct BatchDetail {
     pub id: Uuid,
     pub product_id: Uuid,
     pub batch_no: String,
-    pub mfg_date: chrono::NaiveDate,
-    pub exp_date: chrono::NaiveDate,
+    pub mfg_date: NaiveDate,
+    pub exp_date: NaiveDate,
     pub boxes: i32,
     pub units_per_box: i32,
     pub units_per_pack: i32,
     pub packs_per_box: i32,
     pub packages_configuration: String,
     pub total_packs: i32,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Insertable)]
@@ -86,6 +87,20 @@ pub struct NewBatchDetail<'a> {
     pub packs_per_box: i32,
     pub packages_configuration: &'a str,
     pub total_packs: i32,
+}
+
+#[derive(AsChangeset)]
+#[diesel(table_name = batch_details)]
+pub struct UpdateBatchDetail<'a> {
+    pub batch_no: Option<&'a str>,
+    pub mfg_date: Option<NaiveDate>,
+    pub exp_date: Option<NaiveDate>,
+    pub boxes: Option<i32>,
+    pub units_per_box: Option<i32>,
+    pub units_per_pack: Option<i32>,
+    pub packs_per_box: Option<i32>,
+    pub packages_configuration: Option<&'a str>,
+    pub total_packs: Option<i32>,
 }
 
 #[derive(Serialize)]
