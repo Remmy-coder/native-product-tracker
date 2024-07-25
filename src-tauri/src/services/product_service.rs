@@ -1,11 +1,12 @@
 use app::ErrorResponse;
+use chrono::Utc;
 use diesel::{
     BelongingToDsl, ExpressionMethods, GroupedBy, PgConnection, QueryDsl, RunQueryDsl,
     SelectableHelper,
 };
 use uuid::Uuid;
 
-use crate::models::{BatchDetail, NewProduct, Product, ProductWithBatches};
+use crate::models::{BatchDetail, NewProduct, Product, ProductWithBatches, UpdateProduct};
 use crate::schema::products;
 use crate::schema::products::dsl::*;
 
@@ -66,4 +67,30 @@ pub fn get_all_products_for_client(
         .collect();
 
     Ok(grouped_batches)
+}
+
+pub fn update_product(
+    conn: &mut PgConnection,
+    product_id: Uuid,
+    product_data: UpdateProduct,
+) -> Result<Product, ErrorResponse> {
+    let product_data = UpdateProduct {
+        updated_at: Some(Utc::now().naive_utc()),
+        ..product_data
+    };
+
+    diesel::update(products.find(product_id))
+        .set(&product_data)
+        .get_result::<Product>(conn)
+        .map_err(|e| ErrorResponse {
+            error: e.to_string(),
+        })
+}
+
+pub fn delete_product(conn: &mut PgConnection, product_id: Uuid) -> Result<usize, ErrorResponse> {
+    diesel::delete(products.find(product_id))
+        .execute(conn)
+        .map_err(|e| ErrorResponse {
+            error: e.to_string(),
+        })
 }

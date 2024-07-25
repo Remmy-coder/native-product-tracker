@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import Sidebar from "./sidebar";
+import Loading from "./loading";
 
 export default function DashboardPage() {
   // useEffect(() => {
@@ -25,7 +26,7 @@ export default function DashboardPage() {
   // }, []);
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-muted/40">
+    <div className="flex w-full flex-col bg-muted/40">
       <p>DashboardPage</p>
     </div>
   );
