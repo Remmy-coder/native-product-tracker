@@ -10,14 +10,18 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment } from "react";
+import React, { Fragment, useEffect } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useMachine } from "@xstate/react";
+import productOperationsMachine from "@/lib/machines/productOperationsMachine";
+import { useToast } from "@/components/ui/use-toast";
 
-type AddProductFormValues = {
+export type AddProductFormValues = {
+  clientId?: string;
   productName: string;
   totalQuantity: number;
   totalShipperBoxes: number;
@@ -35,22 +39,30 @@ const addProductFormSchema = z.object({
   totalQuantity: z
     .number({
       required_error: "Total quantity is required",
-      // invalid_type_error: "Total quantity must be a number",
+      invalid_type_error: "Total quantity must be a number",
     })
     .nonnegative(),
   totalShipperBoxes: z
     .number({
       required_error: "Total shipper boxes is required",
-      // invalid_type_error: "Total shipper boxes must be a number",
+      invalid_type_error: "Total shipper boxes must be a number",
     })
     .nonnegative(),
 });
 
 export default function AddProductDialog() {
+  const [open, setOpen] = React.useState(false);
+
+  const [state, send] = useMachine(productOperationsMachine);
+
+  const { toast } = useToast();
+
   const {
     register,
     handleSubmit,
     getValues,
+    setValue,
+    reset,
     formState: { errors },
   } = useForm<AddProductFormValues>({
     defaultValues: {
@@ -61,14 +73,55 @@ export default function AddProductDialog() {
     resolver: zodResolver(addProductFormSchema),
   });
 
+  const handleInputChange =
+    (field: keyof AddProductFormValues) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setValue(field, value as any);
+      send({
+        type: "typing",
+        data: {
+          ...getValues(),
+          [field]: value,
+        },
+      });
+    };
+
   const onSubmit: SubmitHandler<AddProductFormValues> = async (
-    data: z.infer<typeof addProductFormSchema>,
+    _data: z.infer<typeof addProductFormSchema>,
   ) => {
-    console.log(data);
+    send({ type: "creating" });
   };
+
+  useEffect(() => {
+    if (!open) {
+      reset();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (state.value === "success") {
+      toast({
+        className: "bg-green-700",
+        title: "Product Created",
+      });
+      setOpen(false);
+    }
+
+    if (state.value === "failure") {
+      toast({
+        className: "bg-red-700",
+        title: "Product Creation Error",
+        description: state.context.error as unknown as string,
+      });
+    }
+  }, [state.matches("success"), state.matches("failure")]);
+
+  console.log(state);
+
   return (
     <Fragment>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <div className="flex justify-end mx-4">
             <Button variant="outline" className="bg-white text-black" size="lg">
@@ -92,6 +145,7 @@ export default function AddProductDialog() {
                   className="col-span-3"
                   defaultValue={getValues("productName")}
                   {...register("productName")}
+                  onChange={handleInputChange("productName")}
                 />
                 <small className="flex justify-end col-span-4 text-red-700">
                   {errors.productName?.message}
@@ -109,6 +163,7 @@ export default function AddProductDialog() {
                   defaultValue={getValues("totalQuantity")}
                   readOnly
                   {...register("totalQuantity", { valueAsNumber: true })}
+                  onChange={handleInputChange("totalQuantity")}
                 />
                 <small className="flex justify-end col-span-4 text-red-700">
                   {errors.totalQuantity?.message}
@@ -126,6 +181,7 @@ export default function AddProductDialog() {
                   defaultValue={getValues("totalShipperBoxes")}
                   readOnly
                   {...register("totalShipperBoxes", { valueAsNumber: true })}
+                  onChange={handleInputChange("totalShipperBoxes")}
                 />
                 <small className="flex justify-end col-span-4 text-red-700">
                   {errors.totalShipperBoxes?.message}

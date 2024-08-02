@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Store } from "@tauri-apps/plugin-store";
+import { AuthenticateClientResponse } from "./machines/clientOperationsMachine";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -27,4 +28,13 @@ export class StorageManager {
   async save(): Promise<void> {
     await this.store.save();
   }
+}
+
+export async function getClientId() {
+  const store = new StorageManager("store.bin");
+
+  const session =
+    await store.getItem<AuthenticateClientResponse>("client_session");
+
+  return session?.client_id;
 }
