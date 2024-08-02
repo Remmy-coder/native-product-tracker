@@ -6,7 +6,7 @@ type CreateClientResponse = {
   client: { id: string; private_key_path: string };
 };
 
-type AuthenticateClientResponse = {
+export type AuthenticateClientResponse = {
   token: string;
   client_id: string;
   expires_at: string;

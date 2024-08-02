@@ -75,8 +75,6 @@ export default function AuthClientOperation(
     }
   }, [clientState.matches("failure"), clientState.matches("success")]);
 
-  console.log(clientState);
-
   return (
     <Card className="w-[700px] min-h-[40vh] bg-black">
       <CardHeader className="p-10">
