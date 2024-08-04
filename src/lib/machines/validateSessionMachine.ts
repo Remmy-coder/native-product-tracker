@@ -1,4 +1,4 @@
-import { assign, fromPromise, setup } from "xstate";
+import { assign, createActor, fromPromise, setup } from "xstate";
 import { StorageManager } from "../utils";
 import { invoke } from "@tauri-apps/api/core";
 import { AuthenticateClientResponse } from "./clientOperationsMachine";
@@ -71,9 +71,26 @@ const sessionMachine = setup({
     },
     authenticated: {},
     unauthenticated: {
-      entry: "redirectToLogin",
+      // entry: "redirectToLogin",
     },
   },
 });
 
 export { sessionMachine };
+
+export function checkSession() {
+  const actor = createActor(sessionMachine);
+
+  actor.start();
+
+  actor.send({ type: "CHECK" });
+
+  actor.subscribe((snapshot) => {
+    // console.log(snapshot);
+    if (snapshot.value === "unauthenticated") {
+      window.location.href = "/";
+    }
+  });
+}
+
+checkSession();

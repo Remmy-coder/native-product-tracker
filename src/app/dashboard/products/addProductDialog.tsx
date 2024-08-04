@@ -16,9 +16,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useMachine } from "@xstate/react";
-import productOperationsMachine from "@/lib/machines/productOperationsMachine";
 import { useToast } from "@/components/ui/use-toast";
+import { ProductMachineContext } from "@/components/product-machine-provider";
 
 export type AddProductFormValues = {
   clientId?: string;
@@ -53,7 +52,10 @@ const addProductFormSchema = z.object({
 export default function AddProductDialog() {
   const [open, setOpen] = React.useState(false);
 
-  const [state, send] = useMachine(productOperationsMachine);
+  const productSnapshot = ProductMachineContext.useSelector(
+    (snapshot) => snapshot,
+  );
+  const productActorRef = ProductMachineContext.useActorRef();
 
   const { toast } = useToast();
 
@@ -78,7 +80,7 @@ export default function AddProductDialog() {
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const value = event.target.value;
       setValue(field, value as any);
-      send({
+      productActorRef.send({
         type: "typing",
         data: {
           ...getValues(),
@@ -90,7 +92,7 @@ export default function AddProductDialog() {
   const onSubmit: SubmitHandler<AddProductFormValues> = async (
     _data: z.infer<typeof addProductFormSchema>,
   ) => {
-    send({ type: "creating" });
+    productActorRef.send({ type: "creating" });
   };
 
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function AddProductDialog() {
   }, [open]);
 
   useEffect(() => {
-    if (state.value === "success") {
+    if (productSnapshot.value === "success") {
       toast({
         className: "bg-green-700",
         title: "Product Created",
@@ -108,17 +110,14 @@ export default function AddProductDialog() {
       setOpen(false);
     }
 
-    if (state.value === "failure") {
+    if (productSnapshot.value === "failure") {
       toast({
         className: "bg-red-700",
         title: "Product Creation Error",
-        description: state.context.error as unknown as string,
+        description: productSnapshot.context.error as unknown as string,
       });
     }
-  }, [state.matches("success"), state.matches("failure")]);
-
-  console.log(state);
-
+  }, [productSnapshot.matches("success"), productSnapshot.matches("failure")]);
   return (
     <Fragment>
       <Dialog open={open} onOpenChange={setOpen}>
