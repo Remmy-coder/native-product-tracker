@@ -3,14 +3,40 @@ import { assign, fromPromise, setup } from "xstate";
 import { getClientId } from "../utils";
 import { invoke } from "@tauri-apps/api/core";
 
+export type Product = {
+  id: string;
+  client_id: string;
+  product_name: string;
+  total_quantity: number;
+  total_shipper_boxes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BatchDetails = {
+  id: string;
+  product_id: string;
+  batch_no: string;
+  mfg_date: string;
+  exp_date: string;
+  boxes: number;
+  units_per_box: number;
+  packs_per_box: number;
+  package_configuration: string;
+  total_packs: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type CreateProductResponse = {
-  product: {
-    id: string;
-    client_id: string;
-    product_name: string;
-    total_quantity: number;
-    total_shippers_boxes: number;
-  };
+  product: Product;
+};
+
+export type FetchProductResponse = {
+  data: Array<{
+    batch_details: Array<BatchDetails>;
+    product: Product;
+  }>;
 };
 
 const createProductLogic = fromPromise<
@@ -26,16 +52,28 @@ const createProductLogic = fromPromise<
   return response;
 });
 
+const fetchClientProductsLogic = fromPromise(async () => {
+  const clientId = await getClientId();
+  const response = await invoke("get_all_products_for_client", {
+    clientId: clientId,
+  });
+
+  return response;
+});
+
 const productOperationsMachine = setup({
   types: {
     context: {} as {
       createProductFormData: AddProductFormValues | undefined;
+      productData: FetchProductResponse | undefined;
       message: string | undefined;
       error: unknown;
     },
     events: {} as
       | { type: "typing"; data: AddProductFormValues }
-      | { type: "creating" },
+      | { type: "creating" }
+      | { type: "success" }
+      | { type: "failure"; error: string },
   },
   actions: {
     assignFormInputs: assign({
@@ -46,12 +84,13 @@ const productOperationsMachine = setup({
       message: undefined,
     }),
   },
-  actors: { createProductLogic },
+  actors: { createProductLogic, fetchClientProductsLogic },
 }).createMachine({
   id: "productOperation",
   initial: "idle",
   context: {
     createProductFormData: undefined,
+    productData: undefined,
     message: undefined,
     error: undefined,
   },
@@ -63,6 +102,24 @@ const productOperationsMachine = setup({
         },
         creating: {
           target: "Create",
+        },
+      },
+      invoke: {
+        id: "fetchProducts",
+        src: "fetchClientProductsLogic",
+        onDone: {
+          actions: assign({
+            productData: ({ event }) =>
+              event.output as unknown as FetchProductResponse,
+            error: undefined,
+          }),
+        },
+        onError: {
+          target: "failure",
+          actions: assign({
+            error: ({ event }) => event.error,
+            message: undefined,
+          }),
         },
       },
     },
@@ -92,25 +149,14 @@ const productOperationsMachine = setup({
       },
     },
     success: {
-      on: {
-        typing: {
-          actions: ["assignFormInputs", "resetMessage"],
+      after: {
+        100: {
           target: "idle",
-        },
-        creating: {
-          target: "Create",
         },
       },
     },
     failure: {
-      on: {
-        typing: {
-          actions: "assignFormInputs",
-        },
-        creating: {
-          target: "Create",
-        },
-      },
+      type: "final",
     },
   },
 });

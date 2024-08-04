@@ -3,8 +3,22 @@
 import { Fragment } from "react";
 import AddProductDialog from "./addProductDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BatchDetails, Product } from "@/lib/machines/productOperationsMachine";
+import { DataTable } from "@/components/ui/data-table";
+import { columns, ViewProduct } from "./columns";
+import { ProductMachineContext } from "@/components/product-machine-provider";
 
 export default function ProductPage() {
+  const productSnapshot = ProductMachineContext.useSelector(
+    (snapshot) => snapshot,
+  );
+
+  function transformFetchProductToViewProduct(item: {
+    batch_details: BatchDetails[];
+    product: Product;
+  }): ViewProduct {
+    return item.product;
+  }
   return (
     <Fragment>
       <div className="flex justify-between">
@@ -30,7 +44,21 @@ export default function ProductPage() {
             </CardContent>
           </Card>
         </div>
-        <AddProductDialog />
+        <div>
+          <AddProductDialog />
+        </div>
+      </div>
+      <div>
+        <DataTable
+          columns={columns}
+          data={
+            productSnapshot.context.productData
+              ? productSnapshot.context.productData?.data.map((item) =>
+                  transformFetchProductToViewProduct(item),
+                )
+              : []
+          }
+        />
       </div>
     </Fragment>
   );
