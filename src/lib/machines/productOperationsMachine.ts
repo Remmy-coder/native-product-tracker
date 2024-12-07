@@ -2,6 +2,7 @@ import { AddProductFormValues } from "@/app/dashboard/products/addProductDialog"
 import { assign, fromPromise, setup } from "xstate";
 import { getClientId } from "../utils";
 import { invoke } from "@tauri-apps/api/core";
+import { checkSession } from "./validateSessionMachine";
 
 export type Product = {
   id: string;
@@ -43,6 +44,7 @@ const createProductLogic = fromPromise<
   CreateProductResponse,
   AddProductFormValues
 >(async ({ input }): Promise<CreateProductResponse> => {
+  checkSession();
   const clientId = await getClientId();
   const response = await invoke<CreateProductResponse>("create_product", {
     clientId: clientId,
@@ -53,6 +55,7 @@ const createProductLogic = fromPromise<
 });
 
 const fetchClientProductsLogic = fromPromise(async () => {
+  checkSession();
   const clientId = await getClientId();
   const response = await invoke("get_all_products_for_client", {
     clientId: clientId,
@@ -61,18 +64,38 @@ const fetchClientProductsLogic = fromPromise(async () => {
   return response;
 });
 
+const updateProductLogic = fromPromise<
+  CreateProductResponse,
+  AddProductFormValues
+>(async ({ input }) => {
+  checkSession();
+  const clientId = await getClientId();
+  const response = await invoke<CreateProductResponse>("update_product", {
+    clientId: clientId,
+    productId: input.productId,
+    ...input,
+  });
+  return response;
+});
+
 const productOperationsMachine = setup({
   types: {
     context: {} as {
       createProductFormData: AddProductFormValues | undefined;
+      productFormModal: boolean;
       productData: FetchProductResponse | undefined;
+      isEditing: boolean;
       message: string | undefined;
       error: unknown;
     },
     events: {} as
       | { type: "typing"; data: AddProductFormValues }
       | { type: "creating" }
+      | { type: "editing" }
       | { type: "success" }
+      | { type: "opening-modal" }
+      | { type: "closing-modal" }
+      | { type: "set-is-editing" }
       | { type: "failure"; error: string },
   },
   actions: {
@@ -83,13 +106,26 @@ const productOperationsMachine = setup({
     resetMessage: assign({
       message: undefined,
     }),
+    openModal: assign({
+      productFormModal: true,
+    }),
+    closeModal: assign({
+      productFormModal: false,
+      isEditing: false,
+      createProductFormData: undefined,
+    }),
+    setIsEditing: assign({
+      isEditing: true,
+    }),
   },
-  actors: { createProductLogic, fetchClientProductsLogic },
+  actors: { createProductLogic, fetchClientProductsLogic, updateProductLogic },
 }).createMachine({
   id: "productOperation",
   initial: "idle",
   context: {
     createProductFormData: undefined,
+    productFormModal: false,
+    isEditing: false,
     productData: undefined,
     message: undefined,
     error: undefined,
@@ -102,6 +138,18 @@ const productOperationsMachine = setup({
         },
         creating: {
           target: "Create",
+        },
+        editing: {
+          target: "Edit",
+        },
+        "opening-modal": {
+          actions: "openModal",
+        },
+        "closing-modal": {
+          actions: "closeModal",
+        },
+        "set-is-editing": {
+          actions: "setIsEditing",
         },
       },
       invoke: {
@@ -128,7 +176,7 @@ const productOperationsMachine = setup({
         id: "createProduct",
         src: "createProductLogic",
         input: ({ context: { createProductFormData } }) => ({
-          productName: createProductFormData?.productName || "",
+          productName: createProductFormData?.productName.toLowerCase() || "",
           totalQuantity: createProductFormData?.totalQuantity || 0,
           totalShipperBoxes: createProductFormData?.totalShipperBoxes || 0,
         }),
@@ -136,6 +184,37 @@ const productOperationsMachine = setup({
           target: "success",
           actions: assign({
             message: "Product created",
+            createProductFormData: undefined,
+            productFormModal: false,
+            error: undefined,
+          }),
+        },
+        onError: {
+          target: "failure",
+          actions: assign({
+            error: ({ event }) => event.error,
+            message: undefined,
+          }),
+        },
+      },
+    },
+    Edit: {
+      invoke: {
+        id: "updateProduct",
+        src: "updateProductLogic",
+        input: ({ context: { createProductFormData } }) => ({
+          productId: createProductFormData?.productId || "",
+          productName: createProductFormData?.productName.toLowerCase() || "",
+          totalQuantity: createProductFormData?.totalQuantity || 0,
+          totalShipperBoxes: createProductFormData?.totalShipperBoxes || 0,
+        }),
+        onDone: {
+          target: "success",
+          actions: assign({
+            message: "Product modified",
+            createProductFormData: undefined,
+            isEditing: false,
+            productFormModal: false,
             error: undefined,
           }),
         },
@@ -156,7 +235,26 @@ const productOperationsMachine = setup({
       },
     },
     failure: {
-      type: "final",
+      on: {
+        typing: {
+          actions: "assignFormInputs",
+        },
+        creating: {
+          target: "Create",
+        },
+        editing: {
+          target: "Edit",
+        },
+        "opening-modal": {
+          actions: "openModal",
+        },
+        "closing-modal": {
+          actions: "closeModal",
+        },
+        "set-is-editing": {
+          actions: "setIsEditing",
+        },
+      },
     },
   },
 });

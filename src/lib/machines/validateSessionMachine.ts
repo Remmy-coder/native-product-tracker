@@ -93,4 +93,4 @@ export function checkSession() {
   });
 }
 
-checkSession();
+// checkSession();

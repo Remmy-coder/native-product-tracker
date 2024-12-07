@@ -44,6 +44,7 @@ pub fn get_all_products_for_client(
     let products_for_client = products::table
         .filter(products::client_id.eq(_client_id))
         .select(Product::as_select())
+        .order(updated_at.desc())
         .load(conn)
         .map_err(|e| ErrorResponse {
             error: e.to_string(),
