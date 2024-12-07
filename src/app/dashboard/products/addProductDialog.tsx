@@ -21,6 +21,7 @@ import { ProductMachineContext } from "@/components/product-machine-provider";
 
 export type AddProductFormValues = {
   clientId?: string;
+  productId?: string;
   productName: string;
   totalQuantity: number;
   totalShipperBoxes: number;
@@ -50,8 +51,6 @@ const addProductFormSchema = z.object({
 });
 
 export default function AddProductDialog() {
-  const [open, setOpen] = React.useState(false);
-
   const productSnapshot = ProductMachineContext.useSelector(
     (snapshot) => snapshot,
   );
@@ -68,12 +67,24 @@ export default function AddProductDialog() {
     formState: { errors },
   } = useForm<AddProductFormValues>({
     defaultValues: {
-      productName: "",
-      totalQuantity: 0,
-      totalShipperBoxes: 0,
+      productName:
+        productSnapshot.context.createProductFormData?.productName || "",
+      productId: productSnapshot.context.createProductFormData?.productId || "",
+      totalQuantity:
+        productSnapshot.context.createProductFormData?.totalQuantity || 0,
+      totalShipperBoxes:
+        productSnapshot.context.createProductFormData?.totalShipperBoxes || 0,
     },
     resolver: zodResolver(addProductFormSchema),
   });
+
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      productActorRef.send({ type: "opening-modal" });
+    } else {
+      productActorRef.send({ type: "closing-modal" });
+    }
+  };
 
   const handleInputChange =
     (field: keyof AddProductFormValues) =>
@@ -84,6 +95,8 @@ export default function AddProductDialog() {
         type: "typing",
         data: {
           ...getValues(),
+          productId:
+            productSnapshot.context.createProductFormData?.productId || "",
           [field]: value,
         },
       });
@@ -92,14 +105,23 @@ export default function AddProductDialog() {
   const onSubmit: SubmitHandler<AddProductFormValues> = async (
     _data: z.infer<typeof addProductFormSchema>,
   ) => {
-    productActorRef.send({ type: "creating" });
+    productSnapshot.context.isEditing
+      ? productActorRef.send({ type: "editing" })
+      : productActorRef.send({ type: "creating" });
   };
 
   useEffect(() => {
-    if (!open) {
-      reset();
+    if (productSnapshot.context.productFormModal) {
+      const productFormData = productSnapshot.context.createProductFormData;
+      reset({
+        productName: productFormData?.productName || "",
+        totalQuantity: productFormData?.totalQuantity || 0,
+        totalShipperBoxes: productFormData?.totalShipperBoxes || 0,
+      });
+    } else {
+      reset(); // Reset the form when the modal closes
     }
-  }, [open]);
+  }, [productSnapshot.context.productFormModal]);
 
   useEffect(() => {
     if (productSnapshot.value === "success") {
@@ -107,7 +129,6 @@ export default function AddProductDialog() {
         className: "bg-green-700",
         title: "Product Created",
       });
-      setOpen(false);
     }
 
     if (productSnapshot.value === "failure") {
@@ -118,9 +139,13 @@ export default function AddProductDialog() {
       });
     }
   }, [productSnapshot.matches("success"), productSnapshot.matches("failure")]);
+
   return (
     <Fragment>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={productSnapshot.context.productFormModal}
+        onOpenChange={handleDialogOpenChange}
+      >
         <DialogTrigger asChild>
           <div className="flex justify-end mx-4">
             <Button variant="outline" className="bg-white text-black" size="lg">
@@ -130,7 +155,9 @@ export default function AddProductDialog() {
         </DialogTrigger>
         <DialogContent className="lg:max-w-[40vw]">
           <DialogHeader>
-            <DialogTitle>Add Product</DialogTitle>
+            <DialogTitle>
+              {productSnapshot.context.isEditing ? `Edit` : `Add`} Product
+            </DialogTitle>
             <DialogDescription>Let's create a new product</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -188,8 +215,12 @@ export default function AddProductDialog() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" className="bg-white text-black">
-                Create
+              <Button
+                type="submit"
+                className="bg-white text-black"
+                disabled={productSnapshot.matches("Create")}
+              >
+                Submit
               </Button>
             </DialogFooter>
           </form>

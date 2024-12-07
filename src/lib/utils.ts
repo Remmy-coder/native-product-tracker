@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Store } from "@tauri-apps/plugin-store";
 import { AuthenticateClientResponse } from "./machines/clientOperationsMachine";
+import { checkSession } from "./machines/validateSessionMachine";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,4 +38,8 @@ export async function getClientId() {
     await store.getItem<AuthenticateClientResponse>("client_session");
 
   return session?.client_id;
+}
+
+export function extractValues(str: string, delimiter: string): string[] {
+  return str.split(delimiter);
 }

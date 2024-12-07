@@ -1,3 +1,4 @@
+import { ProductBatchMachineProvider } from "@/components/product-batch-machine-provider";
 import { ProductMachineProvider } from "@/components/product-machine-provider";
 import dynamic from "next/dynamic";
 
@@ -15,7 +16,11 @@ export default function DashboardLayout({
       <div className="flex flex-col sm:gap-4 sm:pl-14">
         <HeaderComponent />
         <main>
-          <ProductMachineProvider>{children}</ProductMachineProvider>
+          <ProductMachineProvider>
+            <ProductBatchMachineProvider>
+              {children}
+            </ProductBatchMachineProvider>
+          </ProductMachineProvider>
         </main>
       </div>
     </div>
