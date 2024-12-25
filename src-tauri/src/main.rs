@@ -5,7 +5,7 @@ mod models;
 mod schema;
 mod services;
 
-use app::establish_connection;
+use app::{establish_connection, BatchInput};
 use chrono::NaiveDateTime;
 use diesel::PgConnection;
 use models::{NewBatchDetail, NewProduct, UpdateBatchDetail, UpdateProduct};
@@ -135,36 +135,35 @@ fn delete_product(
 }
 
 #[tauri::command]
-fn create_batch_detail(
+fn create_batch_details(
     state: tauri::State<AppState>,
     product_id: Uuid,
-    batch_no: String,
-    mfg_date: chrono::NaiveDate,
-    exp_date: chrono::NaiveDate,
-    boxes: i32,
-    units_per_box: i32,
-    units_per_pack: i32,
-    packs_per_box: i32,
-    packages_configuration: String,
-    total_packs: i32,
+    batch: Vec<BatchInput>,
 ) -> Result<serde_json::Value, String> {
     let mut conn = state.conn.lock().unwrap();
-    let new_batch_detail = NewBatchDetail {
-        product_id,
-        batch_no: &batch_no,
-        mfg_date,
-        exp_date,
-        boxes,
-        units_per_box,
-        units_per_pack,
-        packs_per_box,
-        packages_configuration: &packages_configuration,
-        total_packs,
-    };
-    match batch_details_service::create_batch_detail(&mut *conn, new_batch_detail) {
-        Ok(batch_detail) => Ok(serde_json::json!({ "batch_detail": batch_detail })),
-        Err(err) => Err(err.error),
+    let mut created_batches = Vec::new();
+
+    for batch_input in batch {
+        let new_batch_detail = NewBatchDetail {
+            product_id,
+            batch_no: batch_input.batch_no.as_str(),
+            mfg_date: batch_input.mfg_date,
+            exp_date: batch_input.exp_date,
+            boxes: batch_input.boxes,
+            units_per_box: batch_input.units_per_box,
+            units_per_pack: batch_input.units_per_pack,
+            packs_per_box: batch_input.packs_per_box,
+            packages_configuration: batch_input.packages_configuration.as_str(),
+            total_packs: batch_input.total_packs,
+        };
+
+        match batch_details_service::create_batch_detail(&mut *conn, new_batch_detail) {
+            Ok(batch_detail) => created_batches.push(batch_detail),
+            Err(err) => return Err(err.error),
+        }
     }
+
+    Ok(serde_json::json!({ "batch_details": created_batches }))
 }
 
 #[tauri::command]
@@ -207,7 +206,7 @@ fn update_batch_detail(
     };
     match batch_details_service::update_batch_detail(&mut *conn, batch_detail_id, batch_detail_data)
     {
-        Ok(batch_detail) => Ok(serde_json::json!({ "batch_detail": batch_detail })),
+        Ok(batch_detail) => Ok(serde_json::json!({ "batch_details": batch_detail })),
         Err(err) => Err(err.error),
     }
 }
@@ -231,7 +230,7 @@ fn fetch_all_batches_for_product(
 ) -> Result<serde_json::Value, String> {
     let mut conn = state.conn.lock().unwrap();
     match batch_details_service::fetch_all_batches_for_product(&mut *conn, product_id) {
-        Ok(products) => Ok(serde_json::json!({ "batch_detail": products })),
+        Ok(products) => Ok(serde_json::json!({ "batch_details": products })),
         Err(err) => Err(err.error),
     }
 }
@@ -266,7 +265,7 @@ fn main() {
             get_all_products_for_client,
             update_product,
             delete_product,
-            create_batch_detail,
+            create_batch_details,
             get_batch_detail,
             update_batch_detail,
             delete_batch_detail,
