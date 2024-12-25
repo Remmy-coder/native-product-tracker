@@ -1,4 +1,4 @@
-import { BatchDetails } from "@/lib/machines/productBatchOperationsMachine";
+import { BatchDetails } from "@/lib/machines/productOperationsMachine";
 
 export function groupBatchesByMonth(batches: BatchDetails[]): { month: string; total: number }[] {
   const monthMap = new Map<string, { month: string; total: number }>();
