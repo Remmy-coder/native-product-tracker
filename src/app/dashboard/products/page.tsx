@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BatchDetails, Product } from "@/lib/machines/productOperationsMachine";
 import { DataTable } from "@/components/ui/data-table";
 import { columns, ViewProduct } from "./columns";
+import { columns as bcolumns } from "./batch-columns"
 import { ProductMachineContext } from "@/components/product-machine-provider";
 import AddProductBatch from "./addProductBatch";
 
@@ -18,8 +19,29 @@ export default function ProductPage() {
     batch_details: BatchDetails[];
     product: Product;
   }): ViewProduct {
-    return { batch_details: item.batch_details, ...item.product };
+    return {
+      ...item.product,
+      batch_details: item.batch_details,
+    };
   }
+
+  const CustomSubRow = ({ row }: { row: any }) => {
+    return (
+      <div className="px-10 mt-5 mb-8 capitalize">
+        <p className="text-xl text-muted-foreground">
+          {row?.original?.product_name} Batch Details
+        </p>
+        <DataTable
+          columns={bcolumns}
+          data={
+            row?.original?.batch_details || []
+          }
+          filterBy="batch_no"
+        />
+      </div>
+    );
+  };
+
   return (
     <Fragment>
       <div className="flex justify-between">
@@ -55,11 +77,12 @@ export default function ProductPage() {
           data={
             productSnapshot.context.productData
               ? productSnapshot.context.productData?.data.map((item) =>
-                  transformFetchProductToViewProduct(item),
-                )
+                transformFetchProductToViewProduct(item),
+              )
               : []
           }
           filterBy="product_name"
+          renderSubRow={(row) => <CustomSubRow row={row} />}
         />
       </div>
       <div>

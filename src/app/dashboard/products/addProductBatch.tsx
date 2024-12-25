@@ -1,4 +1,4 @@
-import { ProductBatchMachineContext } from "@/components/product-batch-machine-provider";
+import { ProductMachineContext } from "@/components/product-machine-provider";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -23,7 +23,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { extendedBatchSchema, validateAndCalculateBatchConfig } from "@/util/validateAndCalculateBatchConfig";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import {
@@ -32,93 +34,23 @@ import {
   MinusCircle,
   PlusCircle,
 } from "lucide-react";
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { SubmitHandler, useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
-export type AddProductBatchFormValues = {
-  productId?: string;
-  batch: {
-    batchNo: string;
-    mfgDate: Date;
-    expDate: Date;
-    boxes: number;
-    unitsPerBox: number;
-    unitsPerPack: number;
-    packsPerBox: number;
-    packagesConfiguration: string;
-    totalPacks: number;
-  }[];
+export type AddProductBatchFormValues = z.infer<typeof extendedBatchSchema> & {
+  batch: Array<z.infer<typeof extendedBatchSchema>>;
 };
 
-type PackageConfig = [string, string, string, string];
-
-const addProductBatchFormSchema = z.object({
-  batch: z.array(
-    z.object({
-      batchNo: z
-        .string({
-          required_error: "Batch number is required",
-          invalid_type_error: "Batch number must be a string",
-        })
-        .min(2, {
-          message: "Batch number must be at least 2 characters.",
-        }),
-      mfgDate: z.date({
-        required_error: "Manufactured date is required",
-        invalid_type_error: "Manufactured date must be a valid date",
-      }),
-      expDate: z.date({
-        required_error: "Expiration date is required",
-        invalid_type_error: "Expiration date must be a date",
-      }),
-      boxes: z
-        .number({
-          required_error: "Number of boxes is required",
-          invalid_type_error: "Number of boxes must be a number",
-        })
-        .positive({ message: "Number of boxes be greater than 0" }),
-      unitsPerBox: z
-        .number({
-          required_error: "Units per box is required",
-          invalid_type_error: "Units per box must be a number",
-        })
-        .positive({ message: "Units per box must be greater than 0" }),
-      unitsPerPack: z
-        .number({
-          required_error: "Units per pack is required",
-          invalid_type_error: "Units per pack must be a number",
-        })
-        .positive({ message: "Units per pack must be greater than 0" }),
-      packsPerBox: z
-        .number({
-          required_error: "Packs per box is required",
-          invalid_type_error: "Packs per box must be a number",
-        })
-        .positive({ message: "Packs per box must be greater than 0" }),
-      packagesConfiguration: z
-        .string({
-          required_error: "Package configuration is required",
-          invalid_type_error: "Package configuration must be a string",
-        })
-        .min(2, {
-          message: "Package configuration must be at least 2 characters",
-        }),
-      totalPacks: z.number({
-        required_error: "Total packs is required",
-        invalid_type_error: "Total packs must be a number",
-      }),
-    }),
-  ),
-});
 
 export default function AddProductBatch() {
-  const productBatchSnapshot = ProductBatchMachineContext.useSelector(
+  const productSnapshot = ProductMachineContext.useSelector(
     (snapshot) => snapshot,
   );
-  const productBatchActorRef = ProductBatchMachineContext.useActorRef();
+  const productActorRef = ProductMachineContext.useActorRef();
 
-  const form = useForm<z.infer<typeof addProductBatchFormSchema>>({
+
+  const form = useForm<AddProductBatchFormValues>({
     defaultValues: {
       batch: [
         {
@@ -135,7 +67,11 @@ export default function AddProductBatch() {
       ],
     },
     mode: "onBlur",
-    resolver: zodResolver(addProductBatchFormSchema),
+    resolver: zodResolver(
+      z.object({
+        batch: z.array(extendedBatchSchema)
+      })
+    ),
   });
 
   const { fields, append, insert, remove } = useFieldArray({
@@ -143,50 +79,86 @@ export default function AddProductBatch() {
     control: form.control,
   });
 
+  const [batchCalculations, setBatchCalculations] = useState<{
+    [index: number]: ReturnType<typeof validateAndCalculateBatchConfig>
+  }>({});
+
   const handleDialogOpenChange = (isOpen: boolean) => {
     if (isOpen) {
-      productBatchActorRef.send({ type: "opening-modal" });
+      productActorRef.send({ type: "opening-modal-batch" });
     } else {
-      productBatchActorRef.send({ type: "closing-modal" });
+      productActorRef.send({ type: "closing-modal-batch" });
     }
   };
 
   const handleInputChange =
     (field: keyof AddProductBatchFormValues["batch"][0], index: number) =>
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value;
-      form.setValue(`batch.${index}.${field}`, value);
-      productBatchActorRef.send({
-        type: "typing",
-        data: {
-          ...form.getValues(),
-          batch: form
-            .getValues()
-            .batch.map((batchItem, i) =>
-              i === index ? { ...batchItem, [field]: value } : batchItem,
-            ),
-        },
-      });
-    };
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+        form.setValue(`batch.${index}.${field}`, value);
+
+        if (field === 'packagesConfiguration' || field === 'boxes' || field === 'unitsPerPack') {
+          const formValues = form.getValues(`batch.${index}`);
+          const calculationResult = validateAndCalculateBatchConfig({
+            packagesConfiguration: field === 'packagesConfiguration' ? value : formValues.packagesConfiguration,
+            boxes: field === 'boxes' ? Number(value) : formValues.boxes,
+            unitsPerPack: field === 'unitsPerPack' ? Number(value) : formValues.unitsPerPack,
+          });
+
+          setBatchCalculations(prev => ({
+            ...prev,
+            [index]: calculationResult
+          }));
+
+          if (calculationResult.isValid) {
+            form.setValue(`batch.${index}.packsPerBox`, calculationResult.calculatedValues.packsPerBox);
+            form.setValue(`batch.${index}.unitsPerBox`, calculationResult.calculatedValues.unitsPerBox);
+            form.setValue(`batch.${index}.totalPacks`, calculationResult.calculatedValues.totalPacks);
+          }
+        }
+
+        productActorRef.send({
+          type: "typing-batch",
+          data: form.getValues(),
+        });
+      };
 
   const onSubmit: SubmitHandler<AddProductBatchFormValues> = async (
-    data: z.infer<typeof addProductBatchFormSchema>,
+    _data,
   ) => {
-    console.log(data);
+    productActorRef.send({ type: "creating-batch" })
   };
 
   useEffect(() => {
-    if (!productBatchSnapshot.context.productBatchFormModal) {
+    if (!productSnapshot.context.productBatchFormModal) {
       form.reset();
+      setBatchCalculations({});
     }
-  }, [productBatchSnapshot.context.productBatchFormModal]);
+  }, [productSnapshot.context.productBatchFormModal]);
 
-  console.log(productBatchSnapshot.context.productBatchFormData);
+
+  useEffect(() => {
+    if (productSnapshot.value === "success") {
+      toast({
+        className: "bg-green-700",
+        title: "Batch Created",
+      });
+    }
+
+    if (productSnapshot.value === "failure") {
+      toast({
+        className: "bg-red-700",
+        title: "Batch Creation Error",
+        description: productSnapshot.context.error as unknown as string,
+      });
+    }
+  }, [productSnapshot.matches("success"), productSnapshot.matches("failure")]);
+
   return (
     <>
       <Fragment>
         <Dialog
-          open={productBatchSnapshot.context.productBatchFormModal}
+          open={productSnapshot.context.productBatchFormModal}
           onOpenChange={handleDialogOpenChange}
         >
           <DialogContent className="lg:max-w-[40vw] max-h-[90vh] overflow-y-auto">
@@ -203,11 +175,11 @@ export default function AddProductBatch() {
               >
                 {fields.map((field, index) => {
                   return (
-                    <Fragment>
+                    <Fragment key={field.id}>
                       {index > 0 ? (
                         <hr className="border-dashed border-gray-400 " />
                       ) : null}
-                      <div key={field.id} className="grid grid-cols-2 gap-8">
+                      <div key={field.batchNo} className="grid grid-cols-2 gap-8">
                         <FormField
                           control={form.control}
                           name={`batch.${index}.mfgDate`}
@@ -246,8 +218,8 @@ export default function AddProductBatch() {
                                     selected={field.value}
                                     onSelect={(_, selectedDate) => {
                                       field.onChange(selectedDate);
-                                      productBatchActorRef.send({
-                                        type: "typing",
+                                      productActorRef.send({
+                                        type: "typing-batch",
                                         data: {
                                           ...form.getValues(),
                                           batch: form
@@ -255,9 +227,9 @@ export default function AddProductBatch() {
                                             .batch.map((batchItem, i) =>
                                               i === index
                                                 ? {
-                                                    ...batchItem,
-                                                    mfgDate: selectedDate,
-                                                  }
+                                                  ...batchItem,
+                                                  mfgDate: selectedDate,
+                                                }
                                                 : batchItem,
                                             ),
                                         },
@@ -310,8 +282,8 @@ export default function AddProductBatch() {
                                     selected={field.value}
                                     onSelect={(_, selectedDate) => {
                                       field.onChange(selectedDate);
-                                      productBatchActorRef.send({
-                                        type: "typing",
+                                      productActorRef.send({
+                                        type: "typing-batch",
                                         data: {
                                           ...form.getValues(),
                                           batch: form
@@ -319,9 +291,9 @@ export default function AddProductBatch() {
                                             .batch.map((batchItem, i) =>
                                               i === index
                                                 ? {
-                                                    ...batchItem,
-                                                    expDate: selectedDate,
-                                                  }
+                                                  ...batchItem,
+                                                  expDate: selectedDate,
+                                                }
                                                 : batchItem,
                                             ),
                                         },
@@ -339,7 +311,7 @@ export default function AddProductBatch() {
                         <FormField
                           control={form.control}
                           name={`batch.${index}.packagesConfiguration`}
-                          render={({ field }) => (
+                          render={({ field: formField }) => (
                             <FormItem className="flex flex-col">
                               <FormLabel
                                 className={`${form?.formState?.errors?.batch?.[index]?.packagesConfiguration === undefined ? `` : `text-red-700`}`}
@@ -352,10 +324,10 @@ export default function AddProductBatch() {
                                   {...form.register(
                                     `batch.${index}.packagesConfiguration` as const,
                                   )}
-                                  onChange={handleInputChange(
-                                    "packagesConfiguration",
-                                    index,
-                                  )}
+                                  onChange={(e) => {
+                                    formField.onChange(e);
+                                    handleInputChange('packagesConfiguration', index)(e);
+                                  }}
                                 />
                               </FormControl>
                               <FormDescription>
@@ -363,6 +335,13 @@ export default function AddProductBatch() {
                                 30 x 05 x 10 x 10 = (30 layers, 5 rows per
                                 layer, 10 packs per row, 10 x 10 units per pack)
                               </FormDescription>
+                              {batchCalculations[index]?.errors && (
+                                <div className="text-red-500">
+                                  {batchCalculations[index].errors.map((err, i) => (
+                                    <p key={i}>{err}</p>
+                                  ))}
+                                </div>
+                              )}
                               <FormMessage className="text-red-700" />
                             </FormItem>
                           )}
@@ -370,7 +349,7 @@ export default function AddProductBatch() {
                         <FormField
                           control={form.control}
                           name={`batch.${index}.packsPerBox`}
-                          render={({ field }) => (
+                          render={({ field: formField }) => (
                             <FormItem className="flex flex-col">
                               <FormLabel
                                 className={`${form?.formState?.errors?.batch?.[index]?.packsPerBox === undefined ? `` : `text-red-700`}`}
@@ -384,11 +363,10 @@ export default function AddProductBatch() {
                                     `batch.${index}.packsPerBox` as const,
                                     { valueAsNumber: true },
                                   )}
-                                  onChange={handleInputChange(
-                                    "packsPerBox",
-                                    index,
-                                  )}
-                                />
+                                  onChange={(e) => {
+                                    formField.onChange(e);
+                                    handleInputChange('packsPerBox', index)(e);
+                                  }} />
                               </FormControl>
                               <FormDescription>
                                 Number of packs inside a single box. Example:
@@ -401,7 +379,7 @@ export default function AddProductBatch() {
                         <FormField
                           control={form.control}
                           name={`batch.${index}.unitsPerPack`}
-                          render={({ field }) => (
+                          render={({ field: formField }) => (
                             <FormItem className="flex flex-col">
                               <FormLabel
                                 className={`${form?.formState?.errors?.batch?.[index]?.unitsPerPack === undefined ? `` : `text-red-700`}`}
@@ -415,11 +393,10 @@ export default function AddProductBatch() {
                                     `batch.${index}.unitsPerPack` as const,
                                     { valueAsNumber: true },
                                   )}
-                                  onChange={handleInputChange(
-                                    "unitsPerPack",
-                                    index,
-                                  )}
-                                />
+                                  onChange={(e) => {
+                                    formField.onChange(e);
+                                    handleInputChange('unitsPerPack', index)(e);
+                                  }} />
                               </FormControl>
                               <FormDescription>
                                 Number of individual units (e.g., capsules) in a
@@ -433,7 +410,7 @@ export default function AddProductBatch() {
                         <FormField
                           control={form.control}
                           name={`batch.${index}.unitsPerBox`}
-                          render={({ field }) => (
+                          render={({ field: formField }) => (
                             <FormItem className="flex flex-col">
                               <FormLabel
                                 className={`${form?.formState?.errors?.batch?.[index]?.unitsPerBox === undefined ? `` : `text-red-700`}`}
@@ -447,6 +424,10 @@ export default function AddProductBatch() {
                                     `batch.${index}.unitsPerBox` as const,
                                     { valueAsNumber: true },
                                   )}
+                                  onChange={(e) => {
+                                    formField.onChange(e);
+                                    handleInputChange('unitsPerBox', index)(e);
+                                  }}
                                 />
                               </FormControl>
                               <FormDescription>
@@ -461,7 +442,7 @@ export default function AddProductBatch() {
                         <FormField
                           control={form.control}
                           name={`batch.${index}.boxes`}
-                          render={({ field }) => (
+                          render={({ field: formField }) => (
                             <FormItem className="flex flex-col">
                               <FormLabel
                                 className={`${form?.formState?.errors?.batch?.[index]?.boxes === undefined ? `` : `text-red-700`}`}
@@ -475,8 +456,10 @@ export default function AddProductBatch() {
                                     `batch.${index}.boxes` as const,
                                     { valueAsNumber: true },
                                   )}
-                                  onChange={handleInputChange("boxes", index)}
-                                />
+                                  onChange={(e) => {
+                                    formField.onChange(e);
+                                    handleInputChange('boxes', index)(e);
+                                  }} />
                               </FormControl>
                               <FormDescription>
                                 Total number of boxes for this batch
@@ -520,31 +503,42 @@ export default function AddProductBatch() {
                         value={`${extractValues(form.getValues(`batch.${index}.packagesConfiguration`), "x")[0]} layers, ${extractValues(form.getValues(`batch.${index}.packagesConfiguration`), "x")[1]} rows per layers`}
                       />*/}
                       </div>
-                      <div className="flex justify-end">
-                        <Button
-                          className="bg-white text-black"
-                          size="icon"
-                          onClick={() => {
-                            insert(index + 1, {
-                              batchNo: "",
-                              mfgDate: form.getValues(`batch.${index}.mfgDate`),
-                              expDate: form.getValues(`batch.${index}.expDate`),
-                              boxes: 0,
-                              unitsPerBox: 0,
-                              unitsPerPack: 0,
-                              packsPerBox: 0,
-                              packagesConfiguration: "",
-                              totalPacks: 0,
-                            });
-                            productBatchActorRef.send({
-                              type: "typing",
-                              data: {
-                                ...form.getValues(),
-                                batch: form
-                                  .getValues()
-                                  .batch.map((batchItem, i) =>
-                                    i === index + 1
-                                      ? {
+                      <div className="flex justify-between">
+                        <div>
+                          {batchCalculations[index]?.isValid && (
+                            <div className="col-span-2 mt-0 px-4 rounded">
+                              <h3 className="font-bold mb-2">Calculated Values:</h3>
+                              <p>Packs per Box: {batchCalculations[index].calculatedValues.packsPerBox}</p>
+                              <p>Units per Box: {batchCalculations[index].calculatedValues.unitsPerBox}</p>
+                              <p>Total Packs: {batchCalculations[index].calculatedValues.totalPacks}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="">
+                          <Button
+                            className="bg-white text-black"
+                            size="icon"
+                            onClick={() => {
+                              insert(index + 1, {
+                                batchNo: "",
+                                mfgDate: form.getValues(`batch.${index}.mfgDate`),
+                                expDate: form.getValues(`batch.${index}.expDate`),
+                                boxes: 0,
+                                unitsPerBox: 0,
+                                unitsPerPack: 0,
+                                packsPerBox: 0,
+                                packagesConfiguration: "",
+                                totalPacks: 0,
+                              });
+                              productActorRef.send({
+                                type: "typing-batch",
+                                data: {
+                                  ...form.getValues(),
+                                  batch: form
+                                    .getValues()
+                                    .batch.map((batchItem, i) =>
+                                      i === index + 1
+                                        ? {
                                           ...batchItem,
                                           mfgDate: form.getValues(
                                             `batch.${index}.mfgDate`,
@@ -553,35 +547,38 @@ export default function AddProductBatch() {
                                             `batch.${index}.expDate`,
                                           ),
                                         }
-                                      : batchItem,
-                                  ),
-                              },
-                            });
-                          }}
-                        >
-                          <PlusCircle className="mr-1 mt-0" />
-                        </Button>
-                        {index > 0 ? (
-                          <Button
-                            className="bg-white text-black ml-1"
-                            size="icon"
-                            onClick={() => {
-                              remove(index);
-                              // productBatchActorRef.send({
-                              //   type: "removing-batch",
-                              //   batchIndex: index,
-                              // });
+                                        : batchItem,
+                                    ),
+                                },
+                              });
                             }}
                           >
-                            <MinusCircle className="mr-1 mt-0" />
+                            <PlusCircle className="mr-1 mt-0" />
                           </Button>
-                        ) : null}
+                          {index > 0 ? (
+                            <Button
+                              className="bg-white text-black ml-1"
+                              size="icon"
+                              onClick={() => {
+                                remove(index);
+                                productActorRef.send({
+                                  type: "removing-batch",
+                                  batchIndex: index,
+                                });
+                              }}
+                            >
+                              <MinusCircle className="mr-1 mt-0" />
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
+
+
                     </Fragment>
                   );
                 })}
-                <div>
-                  <Button type="submit" className="bg-white text-black">
+                <div className="flex justify-center">
+                  <Button type="submit" className="p-6 bg-white text-black">
                     Submit
                     <CircleCheckBig className="ml-1 mt-0" />
                   </Button>

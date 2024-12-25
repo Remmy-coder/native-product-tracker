@@ -1,6 +1,5 @@
 "use client";
 
-import { ProductBatchMachineContext } from "@/components/product-batch-machine-provider";
 import { ProductMachineContext } from "@/components/product-machine-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +14,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { BatchDetails, Product } from "@/lib/machines/productOperationsMachine";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { FolderOpen, MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Folder } from "lucide-react"
 
 type ProductBatch = {
   batch_details: Array<BatchDetails>;
@@ -96,12 +97,25 @@ export const columns: ColumnDef<ViewProduct>[] = [
       return <div className="capitalize">{formatted}</div>;
     },
   },
-
+  {
+    id: 'expand',
+    cell: ({ row }) => {
+      return row.getCanExpand() ?
+        <Button
+          onClick={row.getToggleExpandedHandler()}
+          style={{ cursor: 'pointer' }}
+        >
+          {row.getIsExpanded() ? <FolderOpen size={20} /> : <Folder size={20} />}
+        </Button>
+        : null;
+    },
+  },
   {
     id: "actions",
     cell: ({ row }) => {
+      const router = useRouter()
+
       const productActorRef = ProductMachineContext.useActorRef();
-      const productBatchActorRef = ProductBatchMachineContext.useActorRef();
       const product = row.original;
       return (
         <DropdownMenu>
@@ -116,12 +130,20 @@ export const columns: ColumnDef<ViewProduct>[] = [
             <DropdownMenuItem
               className="cursor-pointer"
               onClick={() => {
-                productBatchActorRef.send({ type: "opening-modal" });
+                productActorRef.send({ type: "opening-modal-batch" });
+                productActorRef.send({ type: "set-product-id", id: product.id })
               }}
             >
               Add Batch
             </DropdownMenuItem>
-            <DropdownMenuItem>View Product Batch Details</DropdownMenuItem>
+            {/*<DropdownMenuItem className="cursor-pointer" onClick={() => {
+              productBatchActorRef.send({
+                type: "set-view-data", data: product
+              })
+              router.push(`/dashboard/products/${product.product_name}`)
+            }}>
+              View Product Batch Details
+            </DropdownMenuItem>*/}
             <DropdownMenuSeparator className="bg-white" />
             <DropdownMenuItem
               className="cursor-pointer"
