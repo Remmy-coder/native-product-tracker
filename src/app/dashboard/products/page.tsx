@@ -14,9 +14,13 @@ import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { groupBatchesByMonth } from "@/util/groupBatchesByMonth";
 
 const chartConfig = {
-  total: {
+  totalBatches: {
     label: "Expiring Batches",
-    color: "var(--chart-3)",
+    color: "#2563eb",
+  },
+  totalProducts: {
+    label: "Products",
+    color: "#FF0000",
   },
 } satisfies ChartConfig
 
@@ -56,10 +60,6 @@ function BatchDetailsBarChart() {
     return null;
   }
 
-  const batchDetails = productSnapshot.context.productData.data.map((v) => v.batch_details);
-
-  const flattenedBatchDetails = batchDetails.flat();
-
   const getPath = (x: number, y: number, width: number, height: number) => (
     `M${x},${y + height}
    C${x + width / 3},${y + height} ${x + width / 2},${y + height / 3} ${x + width / 2}, ${y}
@@ -78,28 +78,49 @@ function BatchDetailsBarChart() {
   return (
     <Card className="bg-black mx-5">
       <CardHeader>
-        <CardTitle>Batch Expiration Bar Chart</CardTitle>
-        <CardDescription>Displaying total product batch added monthly</CardDescription>
+        <CardTitle>Product Batch Bar Chart</CardTitle>
+        <CardDescription>Displaying added products and expiring batches</CardDescription>
       </CardHeader>
-      <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-        <BarChart accessibilityLayer data={groupBatchesByMonth(flattenedBatchDetails)}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="month"
-            tickLine={false}
-            tickMargin={10}
-            axisLine={false}
-            tickFormatter={(value) => value.slice(0, 3)}
-          />
-          <ChartTooltip content={
-            <ChartTooltipContent
-              hideIndicator
+      <CardContent>
+        <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
+          <BarChart
+            accessibilityLayer
+            data={groupBatchesByMonth(productSnapshot.context.productData.data)}
+            margin={{
+              top: 20,
+            }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="month"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              tickFormatter={(value) => value.slice(0, 3)}
             />
-          } />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Bar dataKey="total" fill="#2563eb" radius={4} shape={<TriangleBar />} />
-        </BarChart>
-      </ChartContainer>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                />
+              }
+              cursor={false}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar
+              dataKey="totalBatches"
+              fill="var(--color-totalBatches)"
+              radius={8}
+              shape={<TriangleBar />}
+            />
+            <Bar
+              dataKey="totalProducts"
+              fill="var(--color-totalProducts)"
+              radius={8}
+              shape={<TriangleBar />}
+            />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
     </Card>
   );
 }
